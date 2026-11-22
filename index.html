@@ -175,6 +175,45 @@ ol.expect span{color:var(--mute);font-size:15px}
 .desk-row .d div{color:var(--mute);font-size:13px}
 @media (max-width:600px){.desk-row{grid-template-columns:72px 1fr}.desk-row .danger{grid-column:2;justify-self:start}}
 
+/* admin portal */
+[hidden]{display:none!important}
+.admin-top{border-bottom:1px solid var(--line);background:var(--ink);position:sticky;top:0;z-index:5}
+.admin-top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;height:64px}
+.admin-main{padding:36px 0 80px}
+.admin-head{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;margin-bottom:24px}
+.admin-head h1{font-size:clamp(44px,6vw,72px);font-weight:800}
+.admin-head p{margin:6px 0 0;color:var(--mute)}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px}
+.tile small{display:block;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+.tile b{display:block;font-family:var(--display);font-size:44px;line-height:1.05;font-variant-numeric:tabular-nums}
+.tile span{font-size:13px;color:var(--mute)}
+.tile.next b{font-size:26px;line-height:1.2;margin-top:4px}
+@media (max-width:860px){.tiles{grid-template-columns:repeat(2,1fr)}}
+.toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:20px}
+.seg{display:flex;gap:4px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:999px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--mute)}
+.seg button[aria-pressed="true"]{background:var(--bone);color:var(--ink)}
+.search{flex:1;min-width:220px;max-width:340px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:10px 16px;color:var(--bone);font:inherit;font-size:14px}
+.search:focus{border-color:var(--accent);outline:none}
+.desk-row .acts{display:flex;gap:8px}
+.edit-btn{border:1px solid var(--line);background:transparent;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700}
+.edit-btn:hover{border-color:var(--mute)}
+.desk-row.past{opacity:.6}
+.flash{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--bone);color:var(--ink);padding:12px 18px;border-radius:999px;font-weight:700;font-size:14px;z-index:30;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.gate{max-width:520px;margin:80px auto;text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center}
+.gate h1{font-size:56px}
+.gate p{color:var(--mute);margin:0}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:20;display:grid;place-items:center;padding:16px}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:24px;width:100%;max-width:560px;max-height:calc(100% - 32px);overflow:auto;padding:24px;display:flex;flex-direction:column;gap:14px}
+.modal h2{font-size:38px;font-weight:800}
+.modal .sub{color:var(--mute);font-size:14px;margin-top:-6px}
+.field select{background:var(--ink);border:1px solid var(--line);border-radius:12px;padding:12px 14px;color:var(--bone);font:inherit;font-size:15px}
+.field select:focus,.field input[type=date]:focus{border-color:var(--accent);outline:none}
+.seg.wide{border-radius:14px;background:var(--ink)}
+.seg.wide button{flex:1;border-radius:10px;padding:10px}
+@media (max-width:860px){.desk-row{grid-template-columns:80px 1fr}.desk-row .acts{grid-column:2}}
+
 footer.foot{border-top:1px solid var(--line);padding:40px 0;color:var(--mute);font-size:14px}
 footer.foot .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
 
@@ -184,6 +223,20 @@ footer.foot .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:
 </head>
 <body>
 
+<div id="adminRoot" hidden>
+  <header class="admin-top">
+    <div class="wrap">
+      <a class="logo" href="#" aria-label="Back to the booking site">
+        <div class="mark">CE</div>
+        <div><b>Front desk</b><span>Chris Eddins Chiropractic</span></div>
+      </a>
+      <a class="btn ghost" href="#">View booking site</a>
+    </div>
+  </header>
+  <main class="admin-main"><div class="wrap" id="adminBody"></div></main>
+</div>
+
+<div id="publicRoot">
 <header class="top">
   <div class="wrap">
     <a class="logo" href="#book" aria-label="Chris Eddins Chiropractic, book a visit">
@@ -195,7 +248,10 @@ footer.foot .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:
       <a href="#hours">Hours</a>
       <a href="#first-visit">First visit</a>
     </nav>
-    <a class="btn primary" href="#book">Book now</a>
+    <div style="display:flex;gap:10px">
+      <a class="btn ghost admin-link" href="#admin" hidden>Front desk</a>
+      <a class="btn primary" href="#book">Book now</a>
+    </div>
   </div>
 </header>
 
@@ -233,16 +289,6 @@ footer.foot .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:
           <div class="body" id="app"></div>
         </div>
       </div>
-    </div>
-  </section>
-
-  <section class="band" id="desk" hidden>
-    <div class="wrap">
-      <div class="section-head">
-        <h2>Front desk</h2>
-        <p>Only you can see this. Every upcoming visit, with the patient's contact details.</p>
-      </div>
-      <div id="deskList"></div>
     </div>
   </section>
 
@@ -300,8 +346,11 @@ footer.foot .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:
   <div class="wrap">
     <span>© <span id="yr"></span> Chris Eddins Chiropractic</span>
     <span>Need to change a visit? Open <b>My visits</b> in the booking app.</span>
+    <a href="#admin" class="admin-link" hidden>Front desk portal</a>
   </div>
 </footer>
+</div>
+<div id="modalRoot"></div>
 
 <script>
 /* ===== Settings: edit these to match the office ===== */
@@ -359,11 +408,11 @@ function takenSet(excludeId){
   }));
   return set;
 }
-function slotsFor(dateStr, dur){
+function slotsFor(dateStr, dur, excludeId, lead = MIN_LEAD_MIN){
   const d = parseYmd(dateStr), sessions = HOURS[d.getDay()] || [];
-  const taken = takenSet();
+  const taken = takenSet(excludeId);
   const now = new Date(), isToday = ymd(now) === dateStr;
-  const nowMin = now.getHours()*60 + now.getMinutes() + MIN_LEAD_MIN;
+  const nowMin = now.getHours()*60 + now.getMinutes() + lead;
   return sessions.map(([o,c]) => {
     const out = [];
     for (let t = toMin(o); t + dur <= toMin(c); t += 15) {
@@ -521,34 +570,191 @@ function renderMine(){
     };
   });
 }
-function renderDesk(){
-  const sec = $("#desk");
-  if (!S.isAdmin) { sec.hidden = true; return; }
-  sec.hidden = false;
-  const today = ymd(new Date());
+/* ===== Admin portal ===== */
+const A = { filter: "upcoming", q: "", built: false, editing: null, flashT: null };
+function allRows(){
   const rows = [];
-  Object.entries(S.allAppts).forEach(([owner, items]) => (items||[]).forEach(a => { if (a.date >= today) rows.push({...a, owner}); }));
-  rows.sort((a,b) => (a.date+a.start).localeCompare(b.date+b.start));
-  if (!rows.length) { $("#deskList").innerHTML = `<div class="empty">No upcoming visits booked yet. New bookings show up here as they come in.</div>`; return; }
+  Object.entries(S.allAppts).forEach(([owner, items]) => (items||[]).forEach(a => rows.push({...a, owner})));
+  return rows.sort((a,b) => (a.date+a.start).localeCompare(b.date+b.start));
+}
+function addDays(s, n){ const d = parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); }
+function canAdmin(){ return S.isAdmin || S.mode === "preview"; }
+function showFlash(msg){
+  let el = $("#flash");
+  if (!el) { el = document.createElement("div"); el.id = "flash"; el.className = "flash"; el.setAttribute("role","status"); document.body.appendChild(el); }
+  el.textContent = msg; el.hidden = false;
+  clearTimeout(A.flashT); A.flashT = setTimeout(() => { el.hidden = true; }, 3000);
+}
+function buildAdmin(){
+  $("#adminBody").innerHTML = `
+    <div id="adminBanner"></div>
+    <div class="admin-head">
+      <div><h1>Appointments</h1><p id="adminToday"></p></div>
+    </div>
+    <div class="tiles" id="adminTiles"></div>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Show">
+        <button type="button" data-f="today">Today</button>
+        <button type="button" data-f="week">Next 7 days</button>
+        <button type="button" data-f="upcoming">All upcoming</button>
+        <button type="button" data-f="past">Past</button>
+      </div>
+      <input class="search" id="adminSearch" type="search" placeholder="Search name, phone or email" aria-label="Search appointments">
+    </div>
+    <div id="adminList"></div>`;
+  $("#adminBody").querySelectorAll("[data-f]").forEach(b => b.onclick = () => { A.filter = b.dataset.f; renderAdmin(); });
+  $("#adminSearch").addEventListener("input", e => { A.q = e.target.value; renderAdmin(); });
+  A.built = true;
+}
+function renderAdmin(){
+  if (S.mode === "live" && !S.isAdmin) {
+    A.built = false;
+    $("#adminBody").innerHTML = `<div class="gate"><h1>Office only</h1><p>This page is for Dr. Eddins and his staff. If you're a patient, you can book or change a visit on the booking site.</p><a class="btn primary" href="#">Go to booking</a></div>`;
+    return;
+  }
+  if (S.mode === "loading") {
+    A.built = false;
+    $("#adminBody").innerHTML = `<div class="gate"><p>Loading appointments…</p></div>`;
+    return;
+  }
+  if (!A.built) buildAdmin();
+  $("#adminBanner").innerHTML = S.mode === "preview" ? `<div class="banner" style="margin-bottom:18px">Preview with example appointments. Changes here aren't saved. Open the published page while signed in as the owner to see real bookings.</div>` : "";
+  $("#adminBody").querySelectorAll("[data-f]").forEach(b => b.setAttribute("aria-pressed", b.dataset.f === A.filter));
+
+  const today = ymd(new Date()), wk = addDays(today, 7);
+  const rows = allRows();
+  const up = rows.filter(r => r.date >= today);
+  const todays = rows.filter(r => r.date === today);
+  const week = up.filter(r => r.date < wk);
+  const nowHM = toHM(new Date().getHours()*60 + new Date().getMinutes());
+  const next = up.find(r => r.date > today || r.start >= nowHM);
+  $("#adminToday").textContent = fmtDate(today);
+  $("#adminTiles").innerHTML = `
+    <div class="tile"><small>Today</small><b>${todays.length}</b><span>${todays.reduce((m,r)=>m+r.dur,0)} min booked</span></div>
+    <div class="tile"><small>Next 7 days</small><b>${week.length}</b><span>visits</span></div>
+    <div class="tile"><small>New patients</small><b>${week.filter(r=>r.service==="new").length}</b><span>in the next 7 days</span></div>
+    <div class="tile next"><small>Next up</small><b>${next ? esc(next.name) : "Nobody yet"}</b><span>${next ? (next.date===today?"Today":fmtDate(next.date))+", "+fmt12(next.start) : "No upcoming visits"}</span></div>`;
+
+  let list = A.filter === "today" ? todays : A.filter === "week" ? week : A.filter === "past" ? rows.filter(r => r.date < today).reverse() : up;
+  const q = A.q.trim().toLowerCase();
+  if (q) { const qd = q.replace(/\D/g,""); list = list.filter(r => r.name.toLowerCase().includes(q) || (r.email||"").toLowerCase().includes(q) || (qd && r.phone.replace(/\D/g,"").includes(qd))); }
+
+  if (!list.length) {
+    $("#adminList").innerHTML = `<div class="empty">${q ? "No appointments match “"+esc(A.q)+"”." : A.filter==="today" ? "No visits booked for today." : A.filter==="past" ? "No past visits yet." : "No upcoming visits booked yet. New bookings show up here as they come in."}</div>`;
+    return;
+  }
   const byDay = {};
-  rows.forEach(r => (byDay[r.date] ||= []).push(r));
-  $("#deskList").innerHTML = Object.entries(byDay).map(([d, list]) => `
-    <div class="desk-day"><h3>${fmtDate(d)} <span style="color:var(--mute);font-size:18px">· ${list.length} visit${list.length>1?"s":""}</span></h3>
-      <div class="desk-list">${list.map(a => `
-        <div class="desk-row">
+  list.forEach(r => (byDay[r.date] ||= []).push(r));
+  $("#adminList").innerHTML = Object.entries(byDay).map(([d, items]) => `
+    <div class="desk-day"><h3>${d===today?"Today · ":""}${fmtDate(d)} <span style="color:var(--mute);font-size:18px">· ${items.length} visit${items.length>1?"s":""}</span></h3>
+      <div class="desk-list">${items.map(a => `
+        <div class="desk-row ${d<today?"past":""}">
           <div class="t">${fmt12(a.start).replace(/ (AM|PM)/,"")}<small>${fmt12(a.start).slice(-2)} · ${a.dur} min</small></div>
           <div class="d"><b>${esc(a.name)}</b><span class="pill ${a.service==="new"?"new":"ret"}">${a.service==="new"?"New patient":"Returning"}</span>
             <div>${esc(a.phone)}${a.email?" · "+esc(a.email):""}</div>
             ${a.notes?`<div>“${esc(a.notes)}”</div>`:""}</div>
-          <button type="button" class="danger" data-owner="${esc(a.owner)}" data-id="${esc(a.id)}">Cancel</button>
+          ${d<today ? "" : `<div class="acts">
+            <button type="button" class="edit-btn" data-edit="${esc(a.owner)}|${esc(a.id)}">Edit</button>
+            <button type="button" class="danger" data-owner="${esc(a.owner)}" data-id="${esc(a.id)}">Cancel</button></div>`}
         </div>`).join("")}</div></div>`).join("");
-  $("#deskList").querySelectorAll("[data-id]").forEach(b => {
+  $("#adminList").querySelectorAll("[data-edit]").forEach(b => b.onclick = () => { const [o,i] = b.dataset.edit.split("|"); openEdit(o, i); });
+  $("#adminList").querySelectorAll("[data-id]").forEach(b => {
     let armed = false;
-    b.onclick = () => {
+    b.onclick = async () => {
       if (!armed) { armed = true; b.textContent = "Tap to confirm"; setTimeout(() => { armed = false; if (b.isConnected) b.textContent = "Cancel"; }, 4000); return; }
-      cancelBooking(b.dataset.owner, b.dataset.id);
+      const a = (S.allAppts[b.dataset.owner]||[]).find(x => x.id === b.dataset.id);
+      const ok = await adminWrite(b.dataset.owner, (S.allAppts[b.dataset.owner]||[]).filter(x => x.id !== b.dataset.id));
+      showFlash(ok ? "Cancelled " + (a ? a.name + "'s visit" : "the visit") : "That cancellation didn't go through. Try again.");
     };
   });
+}
+async function adminWrite(owner, items){
+  const prev = S.allAppts[owner];
+  S.allAppts = {...S.allAppts, [owner]: items};
+  S.busy = {...S.busy, [owner]: items.map(a => ({id:a.id,date:a.date,start:a.start,dur:a.dur}))};
+  if (owner === S.me) S.mine = items;
+  if (S.mode !== "preview") {
+    try {
+      await db.doc("appts/"+owner).set({items});
+      await db.doc("busy/"+owner).set({items: S.busy[owner]});
+    } catch (e) {
+      S.allAppts = {...S.allAppts, [owner]: prev};
+      S.busy = {...S.busy, [owner]: (prev||[]).map(a => ({id:a.id,date:a.date,start:a.start,dur:a.dur}))};
+      if (owner === S.me) S.mine = prev || [];
+      render(); return false;
+    }
+  }
+  render(); return true;
+}
+function openEdit(owner, id){
+  const a = (S.allAppts[owner]||[]).find(x => x.id === id);
+  if (!a) return;
+  A.editing = {owner, id, draft: {...a}, err: ""};
+  renderEdit();
+}
+function closeEdit(){ A.editing = null; $("#modalRoot").innerHTML = ""; }
+function renderEdit(){
+  const E = A.editing; if (!E) return;
+  const d = E.draft, today = ymd(new Date());
+  const dur = SERVICES[d.service].dur;
+  const open = (HOURS[parseYmd(d.date).getDay()]||[]).length;
+  const times = slotsFor(d.date, dur, E.id, 0).flatMap(s => s.slots);
+  if (!times.includes(d.start)) d.start = times[0] || "";
+  $("#modalRoot").innerHTML = `
+    <div class="overlay" id="ov">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="edTitle">
+        <h2 id="edTitle">Edit visit</h2>
+        <div class="sub">Booked ${E.draft.created ? new Date(E.draft.created).toLocaleDateString() : ""} · Changes show up right away on the booking site.</div>
+        <div class="field"><label>Visit type</label>
+          <div class="seg wide" role="group" aria-label="Visit type">
+            <button type="button" data-s="ret" aria-pressed="${d.service==="ret"}">Adjustment · 15 min</button>
+            <button type="button" data-s="new" aria-pressed="${d.service==="new"}">New patient · 30 min</button>
+          </div></div>
+        <div class="row2">
+          <div class="field"><label for="edDate">Date</label><input id="edDate" type="date" min="${today}" value="${d.date}"></div>
+          <div class="field"><label for="edTime">Time</label>
+            <select id="edTime" ${times.length?"":"disabled"}>${times.length ? times.map(t => `<option value="${t}" ${t===d.start?"selected":""}>${fmt12(t)}</option>`).join("") : `<option>${open ? "No open times" : "Office closed"}</option>`}</select></div>
+        </div>
+        <div class="field"><label for="edName">Patient name</label><input id="edName" value="${esc(d.name)}"></div>
+        <div class="row2">
+          <div class="field"><label for="edPhone">Phone</label><input id="edPhone" type="tel" value="${esc(d.phone)}"></div>
+          <div class="field"><label for="edEmail">Email</label><input id="edEmail" type="email" value="${esc(d.email)}"></div>
+        </div>
+        <div class="field"><label for="edNotes">Notes</label><textarea id="edNotes">${esc(d.notes)}</textarea></div>
+        <div class="err" role="alert">${esc(E.err)}</div>
+        <div class="footer-bar">
+          <button class="btn ghost" type="button" id="edClose">Discard changes</button>
+          <button class="btn accent" type="button" id="edSave" ${times.length?"":"disabled"}>Save changes</button>
+        </div>
+      </div>
+    </div>`;
+  const sync = () => { d.name = $("#edName").value; d.phone = $("#edPhone").value; d.email = $("#edEmail").value; d.notes = $("#edNotes").value; if (!$("#edTime").disabled) d.start = $("#edTime").value; };
+  $("#modalRoot").querySelectorAll("[data-s]").forEach(b => b.onclick = () => { sync(); d.service = b.dataset.s; d.dur = SERVICES[d.service].dur; E.err = ""; renderEdit(); });
+  $("#edDate").onchange = e => { sync(); if (e.target.value) d.date = e.target.value; E.err = ""; renderEdit(); };
+  $("#edClose").onclick = closeEdit;
+  $("#ov").onclick = e => { if (e.target.id === "ov") closeEdit(); };
+  $("#ov").onkeydown = e => { if (e.key === "Escape") closeEdit(); };
+  $("#edSave").onclick = async () => {
+    sync();
+    if (!d.name.trim()) { E.err = "Add the patient's name."; return renderEdit(); }
+    if (d.phone.replace(/\D/g,"").length < 10) { E.err = "Add a phone number with area code."; return renderEdit(); }
+    if (!slotsFor(d.date, SERVICES[d.service].dur, E.id, 0).some(s => s.slots.includes(d.start))) { E.err = "That time was just taken. Pick another."; return renderEdit(); }
+    const updated = {...d, dur: SERVICES[d.service].dur, name: d.name.trim(), phone: d.phone.trim(), email: d.email.trim(), notes: d.notes.trim(), edited: new Date().toISOString()};
+    $("#edSave").disabled = true; $("#edSave").textContent = "Saving…";
+    const ok = await adminWrite(E.owner, (S.allAppts[E.owner]||[]).map(x => x.id === E.id ? updated : x));
+    if (!ok) { E.err = "Couldn't save. Check your connection and try again."; return renderEdit(); }
+    closeEdit();
+    showFlash("Saved " + updated.name + " · " + fmtDate(updated.date) + ", " + fmt12(updated.start));
+  };
+  $("#edName").focus();
+}
+function route(){
+  const admin = location.hash === "#admin";
+  $("#adminRoot").hidden = !admin;
+  $("#publicRoot").hidden = admin;
+  if (!admin) closeEdit();
+  render();
+  if (admin) window.scrollTo(0,0);
 }
 function renderHours(){
   const todayDow = new Date().getDay();
@@ -568,7 +774,8 @@ function render(){
   $("#mineCount").textContent = n ? "("+n+")" : "";
   if (S.tab === "book") renderBook(); else renderMine();
   renderNextOpen();
-  renderDesk();
+  document.querySelectorAll(".admin-link").forEach(l => l.hidden = !canAdmin());
+  if (location.hash === "#admin") renderAdmin();
 }
 function setTab(t){ S.tab = t; S.error = ""; render(); }
 function reset(){ S.step = 1; S.svc = null; S.date = null; S.time = null; S.error = ""; S.lastBooked = null; S.form.notes = ""; }
@@ -594,6 +801,7 @@ async function confirmBooking(){
   if (S.mode === "preview") {
     S.mine = [...S.mine, appt];
     S.busy[S.me] = S.mine.map(a => ({id:a.id,date:a.date,start:a.start,dur:a.dur}));
+    S.allAppts[S.me] = S.mine;
   } else {
     const prev = S.mine;
     S.mine = [...S.mine, appt];
@@ -607,6 +815,7 @@ async function cancelBooking(ownerId, id){
   if (S.mode === "preview") {
     S.mine = S.mine.filter(a => a.id !== id);
     S.busy[S.me] = S.mine.map(a => ({id:a.id,date:a.date,start:a.start,dur:a.dur}));
+    S.allAppts[S.me] = S.mine;
     return render();
   }
   try {
@@ -622,11 +831,17 @@ async function cancelBooking(ownerId, id){
 function startPreview(){
   if (S.mode !== "loading") return;
   S.mode = "preview"; S.me = "preview-user";
-  // example taken times so the preview looks real
+  // clearly-labelled example appointments so the preview looks real
+  const people = [["Example: Dana Ruiz","(555) 010-2231","dana@example.com","ret","Lower back, follow-up"],["Example: Marcus Lee","(555) 010-4418","","new","Neck pain after a car accident last month"],["Example: Priya Shah","(555) 010-7720","priya@example.com","ret",""],["Example: Tom Becker","(555) 010-3305","","ret","Stiff mid-back"],["Example: Alicia Moore","(555) 010-9142","alicia@example.com","new","Sciatica down the left leg"],["Example: Sam Ortiz","(555) 010-6650","","ret",""]];
   const days = bookableDays().filter(d => (HOURS[parseYmd(d).getDay()]||[]).length).slice(0,4);
-  const sample = [];
-  days.forEach((d,i) => ["08:30","09:00","09:15","10:30","14:00","15:45"].slice(i%3, i%3+4).forEach(t => sample.push({id:uid(),date:d,start:t,dur:15})));
-  S.busy = {example: sample};
+  const times = ["08:30","09:00","09:45","10:30","11:15","14:00","15:30"];
+  const all = {}; let k = 0;
+  days.forEach((d,i) => times.slice(i%3, i%3+4).forEach((t,j) => {
+    const [name,phone,email,svc,notes] = people[k++ % people.length];
+    (all["example-"+k] ||= []).push({id:uid(), service:svc, dur:SERVICES[svc].dur, date:d, start:t, name, phone, email, notes, created:new Date().toISOString()});
+  }));
+  S.allAppts = all;
+  S.busy = Object.fromEntries(Object.entries(all).map(([o,items]) => [o, items.map(a => ({id:a.id,date:a.date,start:a.start,dur:a.dur}))]));
   render();
 }
 async function connect(){
@@ -669,8 +884,9 @@ document.querySelectorAll("[data-pick]").forEach(b => b.addEventListener("click"
 $("#tabBook").onclick = () => setTab("book");
 $("#tabMine").onclick = () => setTab("mine");
 $("#yr").textContent = new Date().getFullYear();
+window.addEventListener("hashchange", route);
 renderHours();
-render();
+route();
 connect();
 </script>
 </body>

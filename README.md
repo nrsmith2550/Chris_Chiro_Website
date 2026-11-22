@@ -5,6 +5,17 @@ A one-page booking website for Dr. Chris Eddins. Patients choose a visit type, p
 - **Adjustment:** 15 minutes, for returning patients
 - **New patient visit:** 30 minutes, for first-time patients (needs two back-to-back 15-minute blocks)
 
+## Admin portal
+
+Open the site with `#admin` at the end of the address (or click **Front desk** in the header, which only appears for the owner). Chris can:
+
+- See today's count, the next 7 days, upcoming new patients, and who's next
+- Filter by Today, Next 7 days, All upcoming, or Past, and search by name, phone or email
+- Edit a visit: change the type, date and time (only open times are offered) and the patient's details
+- Cancel a visit (tap twice to confirm)
+
+Patients who open `#admin` see an "Office only" message. In preview mode, the portal shows clearly labelled example appointments.
+
 ## Files
 
 - `index.html` is the whole site: markup, styles and script in one file, with no build step.
