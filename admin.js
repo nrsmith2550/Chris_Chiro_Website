@@ -24,7 +24,26 @@ function buildAdmin(){
 function renderAdmin(){
   if (S.mode === "live" && !S.isAdmin) {
     A.built = false;
-    $("#adminBody").innerHTML = `<div class="gate"><h1>Office only</h1><p>This page is for Dr. Eddins and his staff. If you're a patient, you can book or change a visit on the booking site.</p><a class="btn primary" href="index.html">Go to booking</a></div>`;
+    $("#adminBody").innerHTML = `
+      <form class="gate" id="login" novalidate>
+        <h1>Front desk</h1>
+        <p>Sign in to see and manage appointments.</p>
+        <div class="field" style="width:100%;max-width:340px;text-align:left">
+          <label for="pw">Password</label>
+          <input id="pw" type="password" autocomplete="current-password" required>
+        </div>
+        <div class="err" role="alert">${esc(A.loginErr || S.loadError || "")}</div>
+        <button class="btn accent" type="submit" id="loginBtn">Sign in</button>
+        <a href="index.html" style="color:var(--mute);font-size:14px">Back to the booking site</a>
+      </form>`;
+    $("#pw").focus();
+    $("#login").addEventListener("submit", async e => {
+      e.preventDefault();
+      const btn = $("#loginBtn"); btn.disabled = true; btn.textContent = "Signing in…";
+      try { const r = await api("/api/admin", {action:"login", password: $("#pw").value}); A.loginErr = ""; setRows(r.appointments); S.isAdmin = true; }
+      catch (err) { A.loginErr = err.message; }
+      render();
+    });
     return;
   }
   if (S.mode === "loading") {
@@ -33,15 +52,15 @@ function renderAdmin(){
     return;
   }
   if (!A.built) buildAdmin();
-  $("#adminBanner").innerHTML = S.mode === "preview" ? `<div class="banner" style="margin-bottom:18px">Preview with example appointments. Changes here aren't saved. Open the published page while signed in as the owner to see real bookings.</div>` : "";
+  $("#adminBanner").innerHTML = S.mode === "preview" ? `<div class="banner" style="margin-bottom:18px">Preview with example appointments. Changes here aren't saved, because this copy isn't connected to the booking server.</div>` : "";
   $("#adminBody").querySelectorAll("[data-f]").forEach(b => b.setAttribute("aria-pressed", b.dataset.f === A.filter));
 
-  const today = ymd(new Date()), wk = addDays(today, 7);
+  const today = officeNow().date, wk = addDays(today, 7);
   const rows = allRows();
   const up = rows.filter(r => r.date >= today);
   const todays = rows.filter(r => r.date === today);
   const week = up.filter(r => r.date < wk);
-  const nowHM = toHM(new Date().getHours()*60 + new Date().getMinutes());
+  const nowHM = toHM(officeNow().min);
   const next = up.find(r => r.date > today || r.start >= nowHM);
   $("#adminToday").textContent = fmtDate(today);
   $("#adminTiles").innerHTML = `
@@ -78,8 +97,8 @@ function renderAdmin(){
     b.onclick = async () => {
       if (!armed) { armed = true; b.textContent = "Tap to confirm"; setTimeout(() => { armed = false; if (b.isConnected) b.textContent = "Cancel"; }, 4000); return; }
       const a = (S.allAppts[b.dataset.owner]||[]).find(x => x.id === b.dataset.id);
-      const ok = await adminWrite(b.dataset.owner, (S.allAppts[b.dataset.owner]||[]).filter(x => x.id !== b.dataset.id));
-      showFlash(ok ? "Cancelled " + (a ? a.name + "'s visit" : "the visit") : "That cancellation didn't go through. Try again.");
+      const err = await adminCancel(b.dataset.owner, b.dataset.id);
+      showFlash(err || "Cancelled " + (a ? a.name + "'s visit" : "the visit"));
     };
   });
 }
@@ -92,7 +111,7 @@ function openEdit(owner, id){
 function closeEdit(){ A.editing = null; $("#modalRoot").innerHTML = ""; }
 function renderEdit(){
   const E = A.editing; if (!E) return;
-  const d = E.draft, today = ymd(new Date());
+  const d = E.draft, today = officeNow().date;
   const dur = SERVICES[d.service].dur;
   const open = (HOURS[parseYmd(d.date).getDay()]||[]).length;
   const times = slotsFor(d.date, dur, E.id, 0).flatMap(s => s.slots);
@@ -138,13 +157,55 @@ function renderEdit(){
     if (!slotsFor(d.date, SERVICES[d.service].dur, E.id, 0).some(s => s.slots.includes(d.start))) { E.err = "That time was just taken. Pick another."; return renderEdit(); }
     const updated = {...d, dur: SERVICES[d.service].dur, name: d.name.trim(), phone: d.phone.trim(), email: d.email.trim(), notes: d.notes.trim(), edited: new Date().toISOString()};
     $("#edSave").disabled = true; $("#edSave").textContent = "Saving…";
-    const ok = await adminWrite(E.owner, (S.allAppts[E.owner]||[]).map(x => x.id === E.id ? updated : x));
-    if (!ok) { E.err = "Couldn't save. Check your connection and try again."; return renderEdit(); }
+    const err = await adminSave(E.owner, updated);
+    if (err) { E.err = err; return renderEdit(); }
     closeEdit();
     showFlash("Saved " + updated.name + " · " + fmtDate(updated.date) + ", " + fmt12(updated.start));
   };
   $("#edName").focus();
 }
-function render(){ renderAdmin(); }
+/* ===== Front desk data ===== */
+function setRows(list){
+  S.allAppts = {db: list || []};
+  S.busy = {...S.busy, admin: (list||[]).map(a => ({id:a.id, date:a.date, start:a.start, dur:a.dur}))};
+}
+function previewSet(owner, items){
+  S.allAppts = {...S.allAppts, [owner]: items};
+  S.busy = {...S.busy, [owner]: items.map(a => ({id:a.id,date:a.date,start:a.start,dur:a.dur}))};
+}
+// Each returns an error message, or "" when it worked
+async function adminCancel(owner, id){
+  if (S.mode === "preview") { previewSet(owner, (S.allAppts[owner]||[]).filter(x => x.id !== id)); render(); return ""; }
+  try { const r = await api("/api/admin", {action:"cancel", id}); setRows(r.appointments); render(); return ""; }
+  catch (e) { if (e.status === 401) { S.isAdmin = false; A.loginErr = e.message; } render(); return e.message; }
+}
+async function adminSave(owner, a){
+  if (S.mode === "preview") { previewSet(owner, (S.allAppts[owner]||[]).map(x => x.id === a.id ? a : x)); render(); return ""; }
+  try {
+    const r = await api("/api/admin", {action:"update", id:a.id, service:a.service, date:a.date, start:a.start, name:a.name, phone:a.phone, email:a.email, notes:a.notes});
+    setRows(r.appointments); render(); return "";
+  } catch (e) {
+    if (e.status === 401) { S.isAdmin = false; A.loginErr = e.message; closeEdit(); render(); }
+    return e.message;
+  }
+}
+async function refreshAdmin(){
+  const r = await api("/api/admin");
+  S.isAdmin = !!r.admin;
+  if (r.admin) setRows(r.appointments);
+}
+async function onLive(){
+  try { await refreshAdmin(); } catch (e) { S.loadError = e.message; }
+  setInterval(async () => { if (!S.isAdmin || A.editing) return; try { await refreshAdmin(); render(); } catch {} }, 60000);
+}
+async function logout(){
+  try { await api("/api/admin", {action:"logout"}); } catch {}
+  S.isAdmin = false; setRows([]); render();
+}
+function render(){
+  const lo = $("#logoutBtn"); if (lo) lo.hidden = !(S.mode === "live" && S.isAdmin);
+  renderAdmin();
+}
+$("#logoutBtn").onclick = logout;
 render();
 connect();

@@ -1,46 +1,51 @@
 # Chris Eddins Chiropractic: Booking Site
 
-A one-page booking website for Dr. Chris Eddins. Patients choose a visit type, pick a day and time, and enter their details.
+Online booking for Dr. Chris Eddins. Patients book without an account; Chris manages everything from a password-protected front desk page.
 
 - **Adjustment:** 15 minutes, for returning patients
-- **New patient visit:** 30 minutes, for first-time patients (needs two back-to-back 15-minute blocks)
+- **New patient visit:** 30 minutes, for first-time patients
 
-## Admin portal
+## How it works
 
-Open `admin.html` (or click **Front desk** in the booking page's header, which only appears for the owner). Chris can:
+| Part | What it does |
+| --- | --- |
+| `index.html` + `book.js` | Patient booking page: pick a visit, day and time, enter details, get a confirmation. "My visits" lists visits booked from that browser and lets the patient cancel them. |
+| `admin.html` + `admin.js` | Front desk (`/admin.html`): sign in with the office password, see today / next 7 days / upcoming / past, search, edit (type, date, time, patient details) and cancel visits. |
+| `core.js`, `styles.css` | Shared by both pages. |
+| `api/` | Vercel serverless functions: `availability`, `book`, `manage` (patient lookup/cancel), `admin`. |
+| `lib/schedule.js` | **Office hours, visit types, booking window. Edit this file to change the schedule.** |
+| Neon Postgres | `appointments` and `blocks` tables. Each 15-minute block can only be held by one visit, so double-booking is impossible even if two people click at the same moment. |
 
-- See today's count, the next 7 days, upcoming new patients, and who's next
-- Filter by Today, Next 7 days, All upcoming, or Past, and search by name, phone or email
-- Edit a visit: change the type, date and time (only open times are offered) and the patient's details
-- Cancel a visit (tap twice to confirm)
+## Environment variables (Vercel → Project → Settings → Environment Variables)
 
-Patients who open `admin.html` see an "Office only" message. In preview mode, the portal shows clearly labelled example appointments.
+| Name | Value |
+| --- | --- |
+| `DATABASE_URL` | Neon connection string for project **eddins-chiropractic**, branch **main** (Neon console → Connect). |
+| `ADMIN_PASSWORD` | The password Chris uses on the front desk page. At least 8 characters; use a long one. |
 
-## Files
-
-- `index.html`: the patient booking page
-- `admin.html`: the front desk portal
-- `styles.css`: shared styles
-- `core.js`: shared settings, availability logic and booking storage (load it first on both pages)
-- `book.js`: the booking page's script
-- `admin.js`: the portal's script
-
-There's no build step.
+After adding or changing them, redeploy.
 
 ## Settings
 
-Edit the constants at the top of `core.js`:
+Edit `lib/schedule.js`:
 
-- `HOURS`: office hours per weekday (0 = Sunday). Each day lists `[open, close]` sessions. **The current hours are placeholders.**
-- `DAYS_AHEAD`: how many days ahead patients can book (default 21).
-- `MIN_LEAD_MIN`: the minimum notice for a booking, in minutes (default 60).
-- `SERVICES`: visit names, lengths and descriptions.
+- `HOURS`: office hours per weekday (0 = Sunday), as `[open, close]` sessions in Eastern time
+- `DAYS_AHEAD`: how far ahead patients can book (21 days)
+- `MIN_LEAD_MIN`: minimum notice for online bookings (60 minutes). The front desk can book any open time.
+- `SERVICES`: visit names, lengths and descriptions
 
-## Storage
+## Privacy notes
 
-The live version runs as a Claude artifact. It uses the artifact's shared database to store bookings:
+- The public availability API returns only taken times, never names or contact details.
+- Patients can only see or cancel a visit with the private token their browser received when they booked.
+- Cancelled visits are kept (status `cancelled`) for the office's records.
+- This is a scheduling tool, not a medical record system. Patients' notes are free text; don't use it to store clinical records.
 
-- `busy/<userId>`: times only, readable by everyone, so booked times disappear for everyone else
-- `appts/<userId>`: full patient details, readable only by the patient and the owner (front-desk view)
+## Local development
 
-If you open the pages anywhere else, such as GitHub Pages or a local file, it runs in **preview mode**: it shows example booked times and doesn't save anything. To run it as a public site, swap the `connect()`, `writeMine()` and `adminWrite()` functions in `core.js` for calls to a real backend, for example a small API on Vercel backed by Postgres.
+```
+npm install
+DATABASE_URL=... ADMIN_PASSWORD=... npx vercel dev
+```
+
+Opened anywhere without the API (a local file, GitHub Pages), the pages run in preview mode with example data and save nothing.

@@ -1,6 +1,8 @@
 /* Shared by index.html (booking) and admin.html (front desk). Each page defines render(). */
-/* ===== Settings: edit these to match the office ===== */
-const HOURS = {          // 0 = Sunday … 6 = Saturday; each day is a list of [open, close] sessions
+/* ===== Settings =====
+   The live site loads these from the server (lib/schedule.js is the one to edit).
+   The values here are only used in preview mode, when the API can't be reached. */
+let HOURS = {
   0: [],
   1: [["08:30","12:00"],["14:00","18:00"]],
   2: [["08:30","12:00"],["14:00","18:00"]],
@@ -9,12 +11,13 @@ const HOURS = {          // 0 = Sunday … 6 = Saturday; each day is a list of [
   5: [["08:30","12:00"],["14:00","17:00"]],
   6: [["09:00","12:00"]]
 };
-const DAYS_AHEAD = 21;     // how far out people can book
-const MIN_LEAD_MIN = 60;   // no bookings less than this many minutes from now
-const SERVICES = {
+let DAYS_AHEAD = 21;
+let MIN_LEAD_MIN = 60;
+let SERVICES = {
   ret: {name:"Adjustment", who:"Returning patient", dur:15, desc:"Quick visit for established patients."},
   new: {name:"New patient visit", who:"New patient", dur:30, desc:"Consultation, exam and first adjustment."}
 };
+const OFFICE_TZ = "America/New_York";
 
 /* ===== Helpers ===== */
 const $ = s => document.querySelector(s);
@@ -29,26 +32,31 @@ const parseYmd = s => { const [y,m,d] = s.split("-").map(Number); return new Dat
 const fmt12 = hm => { let [h,m] = hm.split(":").map(Number); const ap = h>=12?"PM":"AM"; h = h%12||12; return h+":"+pad(m)+" "+ap; };
 const fmtDate = s => { const d = parseYmd(s); return DOW_LONG[d.getDay()]+", "+MON[d.getMonth()]+" "+d.getDate(); };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// Today's date and the current minute in the office's time zone, whatever the viewer's clock says
+function officeNow(){
+  try {
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:OFFICE_TZ,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()).map(x=>[x.type,x.value]));
+    return {date:`${p.year}-${p.month}-${p.day}`, min:Number(p.hour)*60+Number(p.minute)};
+  } catch { const d = new Date(); return {date: ymd(d), min: d.getHours()*60+d.getMinutes()}; }
+}
+const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); };
 const uid = () => Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
-const docsOf = snap => { const list = snap?.docs ?? (Array.isArray(snap) ? snap : []); return list.map(d => ({id: d.id, data: typeof d.data === "function" ? d.data() : (d.data ?? d)})); };
-const dataOf = snap => snap == null ? null : (typeof snap.data === "function" ? snap.data() : (snap.data !== undefined && snap.exists !== undefined ? snap.data : snap));
 
 /* ===== State ===== */
 const S = {
   tab: "book", step: 1, svc: null, date: null, time: null,
   form: {name:"", phone:"", email:"", notes:""},
-  busy: {},            // userId -> [{id,date,start,dur}]
-  mine: [],            // my full appointments
-  allAppts: {},        // owner only: userId -> items
+  busy: {},            // source -> [{id?,date,start,dur}] taken times
+  mine: [],            // this browser's upcoming visits
+  allAppts: {},        // front desk only: {db: [...appointments]}
   mode: "loading",     // loading | live | preview
-  me: null, isAdmin: false, saving: false, error: "", lastBooked: null
+  isAdmin: false, saving: false, error: "", lastBooked: null
 };
-let db = null, user = null;
 
 /* ===== Availability ===== */
 function takenSet(excludeId){
   const set = new Set();
-  Object.values(S.busy).forEach(list => (list||[]).forEach(b => {
+  Object.entries(S.busy).forEach(([src, list]) => (src === "server" && S.isAdmin ? [] : list||[]).forEach(b => {
     if (b.id === excludeId) return;
     for (let t = toMin(b.start); t < toMin(b.start)+b.dur; t += 15) set.add(b.date+" "+toHM(t));
   }));
@@ -57,8 +65,9 @@ function takenSet(excludeId){
 function slotsFor(dateStr, dur, excludeId, lead = MIN_LEAD_MIN){
   const d = parseYmd(dateStr), sessions = HOURS[d.getDay()] || [];
   const taken = takenSet(excludeId);
-  const now = new Date(), isToday = ymd(now) === dateStr;
-  const nowMin = now.getHours()*60 + now.getMinutes() + lead;
+  const now = officeNow(), isToday = now.date === dateStr;
+  if (dateStr < now.date) return sessions.map(([o,c]) => ({label: fmt12(o)+" – "+fmt12(c), slots: []}));
+  const nowMin = now.min + lead;
   return sessions.map(([o,c]) => {
     const out = [];
     for (let t = toMin(o); t + dur <= toMin(c); t += 15) {
@@ -71,8 +80,8 @@ function slotsFor(dateStr, dur, excludeId, lead = MIN_LEAD_MIN){
   });
 }
 function bookableDays(){
-  const out = [], base = new Date(); base.setHours(0,0,0,0);
-  for (let i = 0; i < DAYS_AHEAD; i++){ const d = new Date(base); d.setDate(base.getDate()+i); out.push(ymd(d)); }
+  const out = [], today = officeNow().date;
+  for (let i = 0; i < DAYS_AHEAD; i++) out.push(addDays(today, i));
   return out;
 }
 function countFree(dateStr, dur){ return slotsFor(dateStr, dur).reduce((n,s) => n + s.slots.length, 0); }
@@ -81,37 +90,48 @@ function firstOpen(dur){
   return null;
 }
 
-/* ===== Shared data ===== */
-async function writeMine(){
-  const mineBusy = S.mine.map(a => ({id:a.id, date:a.date, start:a.start, dur:a.dur}));
-  await db.doc("appts/"+S.me).set({items: S.mine});
-  await db.doc("busy/"+S.me).set({items: mineBusy});
+/* ===== Server ===== */
+async function api(path, payload){
+  const opts = payload === undefined ? {credentials:"same-origin"} :
+    {method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)};
+  let r;
+  try { r = await fetch(path, opts); }
+  catch { throw Object.assign(new Error("We couldn't reach the server. Check your connection and try again."), {offline:true}); }
+  let data = {};
+  try { data = await r.json(); } catch {}
+  if (!r.ok) throw Object.assign(new Error(data.error || "Something went wrong. Please try again."), {status:r.status});
+  return data;
 }
-async function adminWrite(owner, items){
-  const prev = S.allAppts[owner];
-  S.allAppts = {...S.allAppts, [owner]: items};
-  S.busy = {...S.busy, [owner]: items.map(a => ({id:a.id,date:a.date,start:a.start,dur:a.dur}))};
-  if (owner === S.me) S.mine = items;
-  if (S.mode !== "preview") {
-    try {
-      await db.doc("appts/"+owner).set({items});
-      await db.doc("busy/"+owner).set({items: S.busy[owner]});
-    } catch (e) {
-      S.allAppts = {...S.allAppts, [owner]: prev};
-      S.busy = {...S.busy, [owner]: (prev||[]).map(a => ({id:a.id,date:a.date,start:a.start,dur:a.dur}))};
-      if (owner === S.me) S.mine = prev || [];
-      render(); return false;
-    }
-  }
-  render(); return true;
+function applyConfig(c){
+  if (c.hours) HOURS = c.hours;
+  if (c.daysAhead) DAYS_AHEAD = c.daysAhead;
+  if (c.minLeadMin != null) MIN_LEAD_MIN = c.minLeadMin;
+  if (c.services) SERVICES = c.services;
 }
+async function loadAvailability(){
+  const c = await api("/api/availability");
+  applyConfig(c);
+  S.busy = {...S.busy, server: c.busy || []};
+  return c;
+}
+/* Visits booked from this browser: ids + private tokens, kept so the patient can see and cancel them */
+const VISITS_KEY = "ce_visits";
+let memVisits = [];
+function savedVisits(){ try { return JSON.parse(localStorage.getItem(VISITS_KEY) || "[]"); } catch { return memVisits; } }
+function storeVisits(list){ memVisits = list; try { localStorage.setItem(VISITS_KEY, JSON.stringify(list)); } catch {} }
+async function loadMine(){
+  const keys = savedVisits();
+  if (!keys.length) { S.mine = []; return; }
+  const {appointments} = await api("/api/manage", {action:"lookup", items: keys});
+  S.mine = appointments.map(a => ({...a, token: keys.find(k => k.id === a.id)?.token}));
+  storeVisits(keys.filter(k => appointments.some(a => a.id === k.id)));
+}
+
 function allRows(){
   const rows = [];
   Object.entries(S.allAppts).forEach(([owner, items]) => (items||[]).forEach(a => rows.push({...a, owner})));
   return rows.sort((a,b) => (a.date+a.start).localeCompare(b.date+b.start));
 }
-function addDays(s, n){ const d = parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); }
-function canAdmin(){ return S.isAdmin || S.mode === "preview"; }
 function showFlash(msg){
   let el = $("#flash");
   if (!el) { el = document.createElement("div"); el.id = "flash"; el.className = "flash"; el.setAttribute("role","status"); document.body.appendChild(el); }
@@ -120,7 +140,7 @@ function showFlash(msg){
 }
 function startPreview(){
   if (S.mode !== "loading") return;
-  S.mode = "preview"; S.me = "preview-user";
+  S.mode = "preview";
   // clearly-labelled example appointments so the preview looks real
   const people = [["Example: Dana Ruiz","(555) 010-2231","dana@example.com","ret","Lower back, follow-up"],["Example: Marcus Lee","(555) 010-4418","","new","Neck pain after a car accident last month"],["Example: Priya Shah","(555) 010-7720","priya@example.com","ret",""],["Example: Tom Becker","(555) 010-3305","","ret","Stiff mid-back"],["Example: Alicia Moore","(555) 010-9142","alicia@example.com","new","Sciatica down the left leg"],["Example: Sam Ortiz","(555) 010-6650","","ret",""]];
   const days = bookableDays().filter(d => (HOURS[parseYmd(d).getDay()]||[]).length).slice(0,4);
@@ -134,35 +154,17 @@ function startPreview(){
   S.busy = Object.fromEntries(Object.entries(all).map(([o,items]) => [o, items.map(a => ({id:a.id,date:a.date,start:a.start,dur:a.dur}))]));
   render();
 }
+// Live data when the API answers; preview mode (example data, nothing saved) when it doesn't
 async function connect(){
-  const fallback = setTimeout(startPreview, 10000);
   try {
-    if (!window.claude?.use) { clearTimeout(fallback); return startPreview(); }
-    [db, user] = await Promise.all([claude.use("db"), claude.use("user")]);
-    if (!db || !user) { clearTimeout(fallback); return startPreview(); }
-    S.me = await user.id();
-    S.isAdmin = ((await user.isOwner?.()) ?? false) || ((await user.canEdit?.()) ?? false);
-    let gotBusy = false;
-    db.collection("busy").onSnapshot(snap => {
-      gotBusy = true; clearTimeout(fallback);
-      const next = {};
-      docsOf(snap).forEach(d => { next[d.id] = d.data?.items || []; });
-      S.busy = next;
-      if (S.mode === "loading") S.mode = "live";
-      render();
-    }, () => { clearTimeout(fallback); startPreview(); });
-    db.doc("appts/"+S.me).onSnapshot(snap => {
-      const data = dataOf(snap);
-      if (!S.saving) S.mine = data?.items || [];
-      render();
-    }, () => {});
-    if (S.isAdmin) {
-      db.collection("appts").onSnapshot(snap => {
-        const next = {};
-        docsOf(snap).forEach(d => { next[d.id] = d.data?.items || []; });
-        S.allAppts = next; render();
-      }, () => { S.isAdmin = false; render(); });
-    }
-  } catch (e) { clearTimeout(fallback); startPreview(); }
+    await loadAvailability();
+    S.mode = "live"; S.loadError = "";
+    if (typeof onLive === "function") await onLive();
+  } catch (e) {
+    if (e.offline || e.status === 404 || e.status === 405) { startPreview(); return; }
+    S.mode = "live"; S.loadError = e.message;   // server reached but failed (e.g. database not configured yet)
+  }
+  render();
+  // keep taken times fresh while the page is open
+  setInterval(async () => { if (S.mode !== "live") return; try { await loadAvailability(); render(); } catch {} }, 60000);
 }
-

@@ -1,8 +1,9 @@
 /* Booking page. Needs core.js first. */
 /* ===== Rendering ===== */
 function modeBanner(){
-  if (S.mode === "preview") return `<div class="banner">Preview mode: bookings made here aren't saved. Open the published page while signed in to book for real.</div>`;
+  if (S.mode === "preview") return `<div class="banner">Preview mode: online booking isn't connected here, so bookings aren't saved.</div>`;
   if (S.mode === "loading") return `<div class="banner info">Checking which times are taken…</div>`;
+  if (S.loadError) return `<div class="banner">Online booking is having trouble right now. Please call the office. (${esc(S.loadError)})</div>`;
   return "";
 }
 
@@ -98,6 +99,7 @@ function renderBook(){
           <div class="field"><label for="fEmail">Email <span style="color:var(--mute);font-weight:500">(optional)</span></label><input id="fEmail" type="email" autocomplete="email" value="${esc(f.email)}"></div>
         </div>
         <div class="field"><label for="fNotes">${S.svc==="new" ? "What brings you in?" : "Anything Dr. Eddins should know?"} <span style="color:var(--mute);font-weight:500">(optional)</span></label><textarea id="fNotes" placeholder="${S.svc==="new" ? "e.g. lower back pain for two weeks after lifting" : "e.g. neck is stiff again"}">${esc(f.notes)}</textarea></div>
+        <input id="fCompany" name="company" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">
         <div class="err" id="err" role="alert">${esc(S.error)}</div>
         <div class="footer-bar">
           <button class="btn ghost" type="button" id="back">Back</button>
@@ -113,7 +115,7 @@ function renderBook(){
 }
 function renderMine(){
   const app = $("#app");
-  const today = ymd(new Date());
+  const today = officeNow().date;
   const upcoming = S.mine.filter(a => a.date >= today).sort((a,b) => (a.date+a.start).localeCompare(b.date+b.start));
   app.innerHTML = `${modeBanner()}
     <div class="label">Upcoming visits</div>
@@ -131,7 +133,7 @@ function renderMine(){
     let armed = false;
     b.onclick = () => {
       if (!armed) { armed = true; b.textContent = "Tap to confirm"; setTimeout(() => { armed = false; if (b.isConnected) b.textContent = "Cancel"; }, 4000); return; }
-      cancelBooking(S.me, b.dataset.cancel);
+      cancelBooking(b.dataset.cancel);
     };
   });
 }
@@ -143,39 +145,44 @@ async function confirmBooking(){
   if (!slotsFor(S.date, v.dur).some(s => s.slots.includes(S.time))) {
     S.error = "Someone just took that time. Pick another one."; S.step = 2; S.time = null; return render();
   }
-  const appt = {id: uid(), service: S.svc, dur: v.dur, date: S.date, start: S.time,
-    name: f.name.trim(), phone: f.phone.trim(), email: f.email.trim(), notes: f.notes.trim(), created: new Date().toISOString()};
+  const payload = {service: S.svc, date: S.date, start: S.time, name: f.name.trim(), phone: f.phone.trim(),
+    email: f.email.trim(), notes: f.notes.trim(), company: ($("#fCompany")?.value || "")};
   S.error = ""; S.saving = true; render();
   if (S.mode === "preview") {
+    const appt = {...payload, id: uid(), dur: v.dur};
     S.mine = [...S.mine, appt];
-    S.busy[S.me] = S.mine.map(a => ({id:a.id,date:a.date,start:a.start,dur:a.dur}));
-    S.allAppts[S.me] = S.mine;
-  } else {
-    const prev = S.mine;
-    S.mine = [...S.mine, appt];
-    try { await writeMine(); }
-    catch (e) { S.mine = prev; S.saving = false; S.error = "We couldn't save your booking. Check your connection and try again."; return render(); }
+    S.busy.mine = S.mine.map(a => ({date:a.date,start:a.start,dur:a.dur}));
+    S.saving = false; S.lastBooked = appt; S.step = 4; return render();
   }
-  S.saving = false; S.lastBooked = appt; S.step = 4; render();
+  try {
+    const {appointment, token} = await api("/api/book", payload);
+    storeVisits([...savedVisits(), {id: appointment.id, token}]);
+    S.mine = [...S.mine, {...appointment, token}];
+    S.saving = false; S.lastBooked = appointment; S.step = 4;
+    loadAvailability().then(render).catch(() => {});
+  } catch (e) {
+    S.saving = false; S.error = e.message;
+    if (e.status === 409) { S.step = 2; S.time = null; loadAvailability().then(render).catch(() => {}); }
+  }
+  render();
 }
-async function cancelBooking(ownerId, id){
+async function cancelBooking(id){
   S.error = "";
   if (S.mode === "preview") {
     S.mine = S.mine.filter(a => a.id !== id);
-    S.busy[S.me] = S.mine.map(a => ({id:a.id,date:a.date,start:a.start,dur:a.dur}));
-    S.allAppts[S.me] = S.mine;
+    S.busy.mine = S.mine.map(a => ({date:a.date,start:a.start,dur:a.dur}));
     return render();
   }
+  const a = S.mine.find(x => x.id === id);
   try {
-    if (ownerId === S.me) { S.mine = S.mine.filter(a => a.id !== id); await writeMine(); }
-    else {
-      const items = (S.allAppts[ownerId]||[]).filter(a => a.id !== id);
-      await db.doc("appts/"+ownerId).set({items});
-      await db.doc("busy/"+ownerId).set({items: items.map(a => ({id:a.id,date:a.date,start:a.start,dur:a.dur}))});
-    }
-  } catch(e) { S.error = "That cancellation didn't go through. Try again."; }
+    await api("/api/manage", {action:"cancel", id, token: a?.token});
+    S.mine = S.mine.filter(x => x.id !== id);
+    storeVisits(savedVisits().filter(k => k.id !== id));
+    await loadAvailability().catch(() => {});
+  } catch (e) { S.error = e.message; }
   render();
 }
+async function onLive(){ try { await loadMine(); } catch {} }
 function renderHours(){
   const todayDow = new Date().getDay();
   $("#hoursTable").innerHTML = [1,2,3,4,5,6,0].map(i => `<tr class="${i===todayDow?"today":""}"><td>${DOW_LONG[i]}</td><td>${(HOURS[i]||[]).length ? HOURS[i].map(([o,c]) => fmt12(o)+" – "+fmt12(c)).join(", ") : "Closed"}</td></tr>`).join("");
@@ -184,17 +191,16 @@ function renderNextOpen(){
   const el = $("#nextOpen");
   if (S.mode === "loading") { el.textContent = "Checking the next open time…"; return; }
   const n = firstOpen(15);
-  el.textContent = n ? "Next open: " + (n.day === ymd(new Date()) ? "Today" : fmtDate(n.day)) + ", " + fmt12(n.time) : "Fully booked for the next 3 weeks";
+  el.textContent = n ? "Next open: " + (n.day === officeNow().date ? "Today" : fmtDate(n.day)) + ", " + fmt12(n.time) : "Fully booked for the next 3 weeks";
 }
 function render(){
   $("#tabBook").setAttribute("aria-selected", S.tab==="book");
   $("#tabMine").setAttribute("aria-selected", S.tab==="mine");
-  const today = ymd(new Date());
+  const today = officeNow().date;
   const n = S.mine.filter(a => a.date >= today).length;
   $("#mineCount").textContent = n ? "("+n+")" : "";
   if (S.tab === "book") renderBook(); else renderMine();
   renderNextOpen();
-  document.querySelectorAll(".admin-link").forEach(l => l.hidden = !canAdmin());
 }
 function setTab(t){ S.tab = t; S.error = ""; render(); }
 function reset(){ S.step = 1; S.svc = null; S.date = null; S.time = null; S.error = ""; S.lastBooked = null; S.form.notes = ""; }
